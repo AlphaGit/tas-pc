@@ -27,7 +27,7 @@ data "archive_file" "lambda_queue_render_job" {
     type = "zip"
 
     source_dir = "${path.module}/queue_render_job"
-    output_path = "${path.module}/queue_render_job.zip"
+    output_path = "${path.module}/tmp/queue_render_job.zip"
 }
 
 resource "aws_s3_bucket_object" "lambda_queue_render_job" {

@@ -12,3 +12,8 @@ output "base_url" {
     description = "Base URL for API Gateway Stage"
     value = aws_apigatewayv2_stage.lambda.invoke_url
 }
+
+output "queue_name" {
+    description = "The name of the queue for the render jobs"
+    value = aws_sqs_queue.render_queue.name
+}

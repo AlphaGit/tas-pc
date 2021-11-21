@@ -15,6 +15,12 @@ terraform {
 
 provider "aws" {
     region = var.aws_region
+
+    default_tags {
+        tags = {
+          "project" = "blender-lambda"
+        }
+    }
 }
 
 resource "aws_s3_bucket" "lambda_bucket" {
@@ -51,6 +57,12 @@ resource "aws_lambda_function" "queue_render_job" {
     source_code_hash = data.archive_file.lambda_queue_render_job.output_base64sha256
 
     role = aws_iam_role.lambda_exec.arn
+
+    environment {
+        variables = {
+            "QUEUE_NAME" = aws_sqs_queue.render_queue.name
+        }
+    }
 }
 
 resource "aws_cloudwatch_log_group" "queue_render_job" {
@@ -60,7 +72,7 @@ resource "aws_cloudwatch_log_group" "queue_render_job" {
 }
 
 resource "aws_iam_role" "lambda_exec" {
-    name = "serverless_lambda"
+    name = "blender_lambda_role"
 
     assume_role_policy = jsonencode({
         Version = "2012-10-17",
@@ -75,20 +87,46 @@ resource "aws_iam_role" "lambda_exec" {
     })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_policy" {
+data "aws_iam_policy_document" "render_lambda_policy_document" {
+    statement {
+        sid = "RenderLambdaPolicy"
+        actions = [
+            "sqs:ReceiveMessage",
+            "sqs:DeleteMessage",
+            "sqs:GetQueueAttributes",
+            "sqs:SendMessage",
+            "sqs:GetQueueUrl"
+        ]
+        resources = [
+            aws_sqs_queue.render_queue.arn
+        ]
+    }
+}
+
+resource "aws_iam_policy" "render_lambda_policy" {
+    name = "render_lambda_policy"
+    policy = data.aws_iam_policy_document.render_lambda_policy_document.json
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_sqs_policy" {
+    role = aws_iam_role.lambda_exec.name
+    policy_arn = aws_iam_policy.render_lambda_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_basic_policy" {
     role = aws_iam_role.lambda_exec.name
     policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 resource "aws_apigatewayv2_api" "lambda" {
-    name = "serverless_lambda_gw"
+    name = "blender_lambda_gw"
     protocol_type = "HTTP"
 }
 
 resource "aws_apigatewayv2_stage" "lambda" {
     api_id = aws_apigatewayv2_api.lambda.id
 
-    name = "serverless_lambda_stage"
+    name = "blender_lambda_stage"
     auto_deploy = true
 
     access_log_settings {
@@ -137,4 +175,47 @@ resource "aws_lambda_permission" "api_gw" {
     principal = "apigateway.amazonaws.com"
 
     source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
+}
+
+resource "aws_sqs_queue" "render_queue" {
+    name = "blender_lambda_queue"
+
+    visibility_timeout_seconds = 300
+}
+
+resource "aws_lambda_function" "exec_render_job" {
+    function_name = "exec_render_job"
+
+    s3_bucket = aws_s3_bucket.lambda_bucket.id
+    s3_key = aws_s3_bucket_object.lambda_exec_render_job.key
+
+    runtime = "python3.8"
+    handler = "exec_render_job.lambda_handler"
+
+    source_code_hash = data.archive_file.lambda_exec_render_job.output_base64sha256
+
+    role = aws_iam_role.lambda_exec.arn
+}
+
+resource "aws_s3_bucket_object" "lambda_exec_render_job" {
+    bucket = aws_s3_bucket.lambda_bucket.id
+
+    key = "exec_render_job.zip"
+    source = data.archive_file.lambda_exec_render_job.output_path
+
+    etag = filemd5(data.archive_file.lambda_exec_render_job.output_path)
+}
+
+data "archive_file" "lambda_exec_render_job" {
+    type = "zip"
+
+    source_dir = "${path.module}/exec_render_job"
+    output_path = "${path.module}/tmp/exec_render_job.zip"
+}
+
+resource "aws_lambda_event_source_mapping" "event_source_mapping" {
+    event_source_arn = aws_sqs_queue.render_queue.arn
+    enabled = true
+    function_name = aws_lambda_function.exec_render_job.arn
+    batch_size = 1
 }

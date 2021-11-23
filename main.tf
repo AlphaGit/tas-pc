@@ -17,9 +17,7 @@ provider "aws" {
     region = var.aws_region
 
     default_tags {
-        tags = {
-          "project" = "blender-lambda"
-        }
+        tags = var.default_tags
     }
 }
 
@@ -32,14 +30,14 @@ resource "aws_s3_bucket" "lambda_bucket" {
 data "archive_file" "lambda_queue_job" {
     type = "zip"
 
-    source_dir = "${path.module}/queue_job"
-    output_path = "${path.module}/tmp/queue_job.zip"
+    source_dir = var.producer_lambda_source_path
+    output_path = "${path.module}/tmp/producer_lambda.zip"
 }
 
 resource "aws_s3_bucket_object" "lambda_queue_job" {
     bucket = aws_s3_bucket.lambda_bucket.id
 
-    key = "queue_job.zip"
+    key = "producer_lambda.zip"
     source = data.archive_file.lambda_queue_job.output_path
 
     etag = filemd5(data.archive_file.lambda_queue_job.output_path)
@@ -51,8 +49,8 @@ resource "aws_lambda_function" "queue_job" {
     s3_bucket = aws_s3_bucket.lambda_bucket.id
     s3_key = aws_s3_bucket_object.lambda_queue_job.key
 
-    runtime = "python3.8"
-    handler = "queue_job.lambda_handler"
+    runtime = var.producer_lambda_runtime
+    handler = var.producer_lambda_handler
 
     source_code_hash = data.archive_file.lambda_queue_job.output_base64sha256
 
@@ -126,7 +124,7 @@ resource "aws_apigatewayv2_api" "lambda" {
 resource "aws_apigatewayv2_stage" "lambda" {
     api_id = aws_apigatewayv2_api.lambda.id
 
-    name = "lambda_stage"
+    name = var.producer_apigateway_stage_name
     auto_deploy = true
 
     access_log_settings {
@@ -158,7 +156,7 @@ resource "aws_apigatewayv2_integration" "queue" {
 resource "aws_apigatewayv2_route" "queue" {
     api_id = aws_apigatewayv2_api.lambda.id
 
-    route_key = "POST /queue"
+    route_key = var.producer_invocation_route_key
     target = "integrations/${aws_apigatewayv2_integration.queue.id}"
 }
 
@@ -184,13 +182,13 @@ resource "aws_sqs_queue" "queue" {
 }
 
 resource "aws_lambda_function" "exec_job" {
-    function_name = "exec_job"
+    function_name = var.consumer_lambda_name
 
     s3_bucket = aws_s3_bucket.lambda_bucket.id
     s3_key = aws_s3_bucket_object.lambda_exec_job.key
 
-    runtime = "python3.8"
-    handler = "exec_job.lambda_handler"
+    runtime = var.consumer_lambda_runtime
+    handler = var.consumer_lambda_handler
 
     source_code_hash = data.archive_file.lambda_exec_job.output_base64sha256
 
@@ -200,7 +198,7 @@ resource "aws_lambda_function" "exec_job" {
 resource "aws_s3_bucket_object" "lambda_exec_job" {
     bucket = aws_s3_bucket.lambda_bucket.id
 
-    key = "exec_job.zip"
+    key = "consumer_lambda.zip"
     source = data.archive_file.lambda_exec_job.output_path
 
     etag = filemd5(data.archive_file.lambda_exec_job.output_path)
@@ -209,8 +207,8 @@ resource "aws_s3_bucket_object" "lambda_exec_job" {
 data "archive_file" "lambda_exec_job" {
     type = "zip"
 
-    source_dir = "${path.module}/exec_job"
-    output_path = "${path.module}/tmp/exec_job.zip"
+    source_dir = var.consumer_lambda_source_path
+    output_path = "${path.module}/tmp/consumer_lambda.zip"
 }
 
 resource "aws_lambda_event_source_mapping" "event_source_mapping" {

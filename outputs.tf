@@ -5,7 +5,7 @@ output "lambda_bucket_name" {
 
 output "function_name" {
     description = "Name of the lambda function"
-    value = aws_lambda_function.queue_render_job.function_name
+    value = aws_lambda_function.queue_job.function_name
 }
 
 output "base_url" {
@@ -14,6 +14,6 @@ output "base_url" {
 }
 
 output "queue_name" {
-    description = "The name of the queue for the render jobs"
-    value = aws_sqs_queue.render_queue.name
+    description = "The name of the queue for the jobs"
+    value = aws_sqs_queue.queue.name
 }

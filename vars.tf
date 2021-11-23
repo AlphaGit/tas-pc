@@ -18,6 +18,20 @@ variable "default_tags" {
     default = {}
 }
 
+variable "producer_lambda_function_name" {
+    description = "Name of the producer lambda function"
+
+    type = string
+    default = "producer-lambda-function"
+}
+
+variable "producer_api_gateway_name" {
+    description = "Name of the producer api gateway"
+
+    type = string
+    default = "producer-api-gateway"
+}
+
 variable "producer_lambda_source_path" {
     description = "Path to the producer lambda source"
 
@@ -79,4 +93,11 @@ variable "consumer_lambda_source_path" {
 
     type = string
     default = "./exec_job"
+}
+
+variable "queue_name" {
+    description = "Name of the queue"
+
+    type = string
+    default = "producer-consumer-queue"
 }

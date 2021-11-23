@@ -1,29 +1,28 @@
-data "archive_file" "lambda_queue_job" {
+data "archive_file" "producer_lambda" {
     type = "zip"
-
     source_dir = var.producer_lambda_source_path
     output_path = "${path.module}/tmp/producer_lambda.zip"
 }
 
-resource "aws_s3_bucket_object" "lambda_queue_job" {
+resource "aws_s3_bucket_object" "producer_lambda" {
     bucket = aws_s3_bucket.lambda_bucket.id
 
     key = "producer_lambda.zip"
-    source = data.archive_file.lambda_queue_job.output_path
+    source = data.archive_file.producer_lambda.output_path
 
-    etag = filemd5(data.archive_file.lambda_queue_job.output_path)
+    etag = filemd5(data.archive_file.producer_lambda.output_path)
 }
 
-resource "aws_lambda_function" "queue_job" {
+resource "aws_lambda_function" "producer_lambda" {
     function_name = var.producer_lambda_function_name
 
     s3_bucket = aws_s3_bucket.lambda_bucket.id
-    s3_key = aws_s3_bucket_object.lambda_queue_job.key
+    s3_key = aws_s3_bucket_object.producer_lambda.key
 
     runtime = var.producer_lambda_runtime
     handler = var.producer_lambda_handler
 
-    source_code_hash = data.archive_file.lambda_queue_job.output_base64sha256
+    source_code_hash = data.archive_file.producer_lambda.output_base64sha256
 
     role = aws_iam_role.lambda_exec.arn
 
@@ -34,8 +33,8 @@ resource "aws_lambda_function" "queue_job" {
     }
 }
 
-resource "aws_cloudwatch_log_group" "queue_job" {
-    name = "/aws/lambda/${aws_lambda_function.queue_job.function_name}"
+resource "aws_cloudwatch_log_group" "producer_lambda_log_group" {
+    name = "/aws/lambda/${aws_lambda_function.producer_lambda.function_name}"
 
     retention_in_days = 30
 }
@@ -72,7 +71,7 @@ resource "aws_apigatewayv2_stage" "lambda" {
 resource "aws_apigatewayv2_integration" "queue" {
     api_id = aws_apigatewayv2_api.lambda.id
 
-    integration_uri = aws_lambda_function.queue_job.invoke_arn
+    integration_uri = aws_lambda_function.producer_lambda.invoke_arn
     integration_type = "AWS_PROXY"
     integration_method = "POST"
 }
@@ -88,4 +87,13 @@ resource "aws_cloudwatch_log_group" "api_gw" {
     name = "/aws/api_gw/${aws_apigatewayv2_api.lambda.name}"
     
     retention_in_days = 30
+}
+
+resource "aws_lambda_permission" "api_gw" {
+    statement_id = "AllowExecutionFromAPIGateway"
+    action = "lambda:InvokeFunction"
+    function_name = aws_lambda_function.producer_lambda.function_name
+    principal = "apigateway.amazonaws.com"
+
+    source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
 }

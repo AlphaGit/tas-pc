@@ -36,7 +36,7 @@ variable "producer_lambda_source_path" {
     description = "Path to the producer lambda source"
 
     type = string
-    default = "./queue_job"
+    default = "./producer_function"
 }
 
 variable "producer_lambda_runtime" {
@@ -50,7 +50,7 @@ variable "producer_lambda_handler" {
     description = "Handler for the producer lambda"
 
     type = string
-    default = "queue_job.lambda_handler"
+    default = "producer_function.lambda_handler"
 }
 
 variable "producer_apigateway_stage_name" {
@@ -67,11 +67,11 @@ variable "producer_invocation_route_key" {
     default = "POST /queue"
 }
 
-variable "consumer_lambda_name" {
+variable "consumer_lambda_function_name" {
     description = "Name of the consumer lambda"
 
     type = string
-    default = "consumer"
+    default = "consumer-lambda-function"
 }
 
 variable "consumer_lambda_runtime" {
@@ -85,14 +85,14 @@ variable "consumer_lambda_handler" {
     description = "Handler for the consumer lambda"
 
     type = string
-    default = "exec_job.lambda_handler"
+    default = "consumer_function.lambda_handler"
 }
 
 variable "consumer_lambda_source_path" {
     description = "Path to the consumer lambda source"
 
     type = string
-    default = "./exec_job"
+    default = "./consumer_function"
 }
 
 variable "queue_name" {

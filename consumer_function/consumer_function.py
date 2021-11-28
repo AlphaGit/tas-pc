@@ -1,8 +1,6 @@
 import json
 
 def lambda_handler(event, context):
-    print("Received event: " + json.dumps(event, indent=2))
-    return {
-        'statusCode': 200,
-        'body': 'Lambda example.'
-    }
+    received_body = event['Records'][0]['body']
+    record = json.loads(received_body)
+    print('Received message for file: ' + record['file'])
